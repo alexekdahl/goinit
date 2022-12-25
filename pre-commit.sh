@@ -37,7 +37,7 @@ else
 fi
 
 printf "${LIME_YELLOW}Running golangci-lint on all staged *.go files...${NORMAL}\n"
-golangci-lint run --enable-all
+golangci-lint run
 
 if [[ $? != 0 ]]; then
   printf "${RED}Linting failed! ${NORMAL}Please fix errors before committing.\n"
