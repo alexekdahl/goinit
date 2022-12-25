@@ -24,6 +24,12 @@ const (
 )
 
 func main() {
+	cmd := exec.Command("go", "version")
+	if _, err := cmd.CombinedOutput(); err != nil {
+		fmt.Printf("Go is not installed: %s\n", err)
+		log.Fatal(err)
+	}
+
 	projectName := flag.String("d", DefaultProjectName, "project name")
 	flag.Parse()
 
