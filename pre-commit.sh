@@ -15,7 +15,7 @@ if [[ ! -x "$GOLANGCI_LINT" ]]; then
   exit 1
 fi
 
-# Check for golangci-lint
+# Check for golines
 if [[ ! -x "$GOLINES" ]]; then
   printf "\t\033[41mPlease install golines (go install github.com/segmentio/golines@latest)"
   exit 1
@@ -26,6 +26,14 @@ LIME_YELLOW=$(tput setaf 190)
 RED=$(tput setaf 1)
 GREEN=$(tput setaf 2)
 
+printf "${LIME_YELLOW}Running go fmt on all staged *.go files...${NORMAL}\n"
+go fmt
+if [[ $? != 0 ]]; then
+  printf "${RED}Linting failed! ${NORMAL}Please fix errors before committing.\n"
+  exit 1
+else
+ printf "${GREEN}Linting passed! ${NORMAL}Continuing to commit.\n"
+fi
 printf "${LIME_YELLOW}Running golines on all staged *.go files...${NORMAL}\n"
 golines . -m 120 -w
 

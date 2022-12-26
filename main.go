@@ -7,7 +7,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"regexp"
 )
 
 //go:embed .golangci.yml
@@ -102,13 +104,60 @@ func initRepo() error {
 
 // goModInit initializes a new Go module with the given name in the current directory.
 func goModInit(name string) error {
-	cmd := exec.Command("go", "mod", "init", name)
+	alias := getAlias()
+	projectName := alias + name
+	cmd := exec.Command("go", "mod", "init", projectName)
 	err := cmd.Run()
 	if err != nil {
 		return fmt.Errorf("error initializing Go module: %w", err)
 	}
 
 	return nil
+}
+
+func getAlias() string {
+	const (
+		alias         = "project/"
+		sshConfigPath = ".ssh/config"
+		req           = `Host github\.com\n\s+User (?P<user>\w+)`
+	)
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return alias
+	}
+
+	path := path.Join(home, sshConfigPath)
+
+	input, err := readFile(path)
+	if err != nil {
+		return alias
+	}
+
+	re := regexp.MustCompile(req)
+	match := re.FindStringSubmatch(input)
+
+	if len(match) < 2 {
+		return alias
+	}
+
+	return fmt.Sprintf("github.com/%s/", match[1])
+}
+
+func readFile(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	bytes := make([]byte, 1024)
+	n, err := file.Read(bytes)
+	if err != nil {
+		return "", err
+	}
+
+	return string(bytes[:n]), nil
 }
 
 // createFile creates a new file with the given name and writes the contents of the specified
