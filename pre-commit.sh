@@ -7,7 +7,7 @@ if [[ "$STAGED_GO_FILES" = "" ]]; then
 fi
 
 GOLANGCI_LINT=$GOPATH/bin/golangci-lint
-GOLINES=$GOPATH/bin/golangci-lint
+GOLINES=$GOPATH/bin/golines
 
 # Check for golangci-lint
 if [[ ! -x "$GOLANGCI_LINT" ]]; then
