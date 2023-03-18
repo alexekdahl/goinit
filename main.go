@@ -12,14 +12,8 @@ import (
 	"regexp"
 )
 
-//go:embed .golangci.yml
-var linting embed.FS
-
-//go:embed pre-commit.sh
-var hook embed.FS
-
-//go:embed .gitignore
-var gitignore embed.FS
+//go:embed templates/*
+var templatesFS embed.FS
 
 const (
 	DefaultProjectName = "new_project"
@@ -76,12 +70,20 @@ func createProjectFiles(projectName string) error {
 		return fmt.Errorf("error initializing Go module: %w", err)
 	}
 
-	if err := createFile(".golintci.yml", linting, ".golangci.yml"); err != nil {
+	if err := createFile(".golintci.yml", templatesFS, "templates/.golangci.yml"); err != nil {
 		return fmt.Errorf("error creating linting configuration file: %w", err)
 	}
 
-	if err := createFile(".gitignore", gitignore, ".gitignore"); err != nil {
+	if err := createFile(".gitignore", templatesFS, "templates/.gitignore"); err != nil {
 		return fmt.Errorf("error creating .gitignore file: %w", err)
+	}
+
+	if err := createFile("Makefile", templatesFS, "templates/Makefile"); err != nil {
+		return fmt.Errorf("error creating .gitignore file: %w", err)
+	}
+
+	if err := createScripts(); err != nil {
+		return fmt.Errorf("error creating scripts: %w", err)
 	}
 
 	if err := createPreCommitHook(); err != nil {
@@ -196,7 +198,7 @@ func createPreCommitHook() error {
 	defer file.Close()
 
 	// Write the contents of the preCommitHook string to the file
-	bytes, err := hook.ReadFile("pre-commit.sh")
+	bytes, err := templatesFS.ReadFile("templates/scripts/pre-commit")
 	if err != nil {
 		return fmt.Errorf("error reading embedded file: %w", err)
 	}
@@ -208,6 +210,34 @@ func createPreCommitHook() error {
 
 	// Make the file executable
 	if err = os.Chmod("pre-commit", 0o700); err != nil {
+		return fmt.Errorf("error making file executable: %w", err)
+	}
+
+	return nil
+}
+
+func createScripts() error {
+	if err := mkdir("scripts"); err != nil {
+		return err
+	}
+
+	if err := createFile("scripts/pre-commit", templatesFS, "templates/scripts/pre-commit"); err != nil {
+		return fmt.Errorf("error creating pre-commit file: %w", err)
+	}
+
+	if err := createFile("scripts/setup.sh", templatesFS, "templates/scripts/setup.sh"); err != nil {
+		return fmt.Errorf("error creating setup file: %w", err)
+	}
+	// Make the file executable
+	if err := os.Chmod("scripts/setup.sh", 0o700); err != nil {
+		return fmt.Errorf("error making file executable: %w", err)
+	}
+
+	if err := createFile("scripts/cibuild.sh", templatesFS, "templates/scripts/cibuild.sh"); err != nil {
+		return fmt.Errorf("error creating cibuild file: %w", err)
+	}
+	// Make the file executable
+	if err := os.Chmod("scripts/cibuild.sh", 0o700); err != nil {
 		return fmt.Errorf("error making file executable: %w", err)
 	}
 

@@ -7,7 +7,7 @@ cibuild:
 
 #####################################
 
-BINARY=goinit
+BINARY=goproject
 SRC=./main.go
 BIN_DIR=./bin
 .DEFAULT_GOAL := build

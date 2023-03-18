@@ -27,7 +27,7 @@ RED=$(tput setaf 1)
 GREEN=$(tput setaf 2)
 
 printf "${LIME_YELLOW}Running go fmt on all staged *.go files...${NORMAL}\n"
-go fmt
+go fmt ./...
 if [[ $? != 0 ]]; then
   printf "${RED}Linting failed! ${NORMAL}Please fix errors before committing.\n"
   exit 1
