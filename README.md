@@ -1,4 +1,5 @@
 # Go Project
+[![Go Report Card](https://goreportcard.com/badge/github.com/AlexEkdahl/goinit)](https://goreportcard.com/report/github.com/AlexEkdahl/goinit)
 
 This is a Go project that creates a new project with the specified name. The project includes a linting configuration file, a pre-commit hook, and a .gitignore file.
 
