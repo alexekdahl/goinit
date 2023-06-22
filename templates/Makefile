@@ -11,7 +11,7 @@ BINARY=goproject
 SRC=./main.go
 BIN_DIR=./bin
 .DEFAULT_GOAL := build
-BUILD_CMD=go build -mod=readonly -ldflags="-s -w" -gcflags=all=-l -trimpath=true
+BUILD_CMD=CGO_ENABLED=0 go build -mod=readonly -ldflags="-s -w" -gcflags=all=-l -trimpath=true
 
 build:
 	@$(BUILD_CMD) -o $(BIN_DIR)/$(BINARY) $(SRC)
@@ -25,5 +25,4 @@ test:
 clean:
 	go clean
 	rm -rf $(BIN_DIR)
-	rm  $(DB_SRC)
 

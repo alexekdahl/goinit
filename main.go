@@ -40,7 +40,7 @@ func main() {
 
 func mkdir(name string) error {
 	if _, err := os.Stat(name); err == nil {
-		return fmt.Errorf("project already exists: %w", err)
+		return fmt.Errorf("folder already exists: %w", err)
 	}
 
 	pwd, err := os.Getwd()
@@ -74,6 +74,10 @@ func createProjectFiles(projectName string) error {
 		return fmt.Errorf("error creating linting configuration file: %w", err)
 	}
 
+	if err := createFile(".goreleaser.yml", templatesFS, "templates/.goreleaser.yml"); err != nil {
+		return fmt.Errorf("error creating goreleaser file: %w", err)
+	}
+
 	if err := createFile(".gitignore", templatesFS, "templates/.gitignore"); err != nil {
 		return fmt.Errorf("error creating .gitignore file: %w", err)
 	}
@@ -84,6 +88,10 @@ func createProjectFiles(projectName string) error {
 
 	if err := createScripts(); err != nil {
 		return fmt.Errorf("error creating scripts: %w", err)
+	}
+
+	if err := createGithubAction(); err != nil {
+		return fmt.Errorf("error creating github actions: %w", err)
 	}
 
 	if err := createPreCommitHook(); err != nil {
@@ -211,6 +219,35 @@ func createPreCommitHook() error {
 	// Make the file executable
 	if err = os.Chmod("pre-commit", 0o700); err != nil {
 		return fmt.Errorf("error making file executable: %w", err)
+	}
+
+	return nil
+}
+
+func createGithubAction() error {
+	if err := mkdir(".github"); err != nil {
+		return err
+	}
+
+	if err := mkdir(".github/workflows"); err != nil {
+		return err
+	}
+
+	file, err := os.Create(".github/workflows/releaser.yml")
+	if err != nil {
+		return fmt.Errorf("error creating file: %w", err)
+	}
+	defer file.Close()
+
+	// Write the contents of the preCommitHook string to the file
+	bytes, err := templatesFS.ReadFile("templates/releaser.yml")
+	if err != nil {
+		return fmt.Errorf("error reading embedded file: %w", err)
+	}
+
+	_, err = file.Write(bytes)
+	if err != nil {
+		return fmt.Errorf("error writing to file: %w", err)
 	}
 
 	return nil
