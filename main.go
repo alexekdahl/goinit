@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"regexp"
 )
@@ -16,26 +15,55 @@ import (
 var templatesFS embed.FS
 
 const (
-	DefaultProjectName = "new_project"
+	DefaultProjectName      = "new_project"
+	GolintciTemplate        = "templates/.golangci.yml"
+	GoreleaserTemplate      = "templates/.goreleaser.yml"
+	GitignoreTemplate       = "templates/.gitignore"
+	MakefileTemplate        = "templates/Makefile"
+	ReleaserTemplate        = "templates/releaser.yml"
+	PreCommitHookTemplate   = "templates/scripts/pre-commit"
+	PreCommitScriptTemplate = "templates/scripts/pre-commit"
+	SetupScriptTemplate     = "templates/scripts/setup.sh"
+	CIBuildScriptTemplate   = "templates/scripts/cibuild.sh"
+	GolintciFile            = ".golintci.yml"
+	GoreleaserFile          = ".goreleaser.yml"
+	GitignoreFile           = ".gitignore"
+	GithubDir               = ".github"
+	WorkflowsDir            = ".github/workflows"
+	ReleaserFile            = ".github/workflows/releaser.yml"
+	GitHooksDir             = ".git/hooks"
+	ScriptsDir              = "scripts"
+	PreCommitScriptFile     = "scripts/pre-commit"
+	SetupScriptFile         = "scripts/setup.sh"
+	CIBuildScriptFile       = "scripts/cibuild.sh"
+	PreCommitHookFile       = "pre-commit"
+	Makefile                = "Makefile"
+	SSHConfigDir            = ".ssh"
+	SSHConfigFile           = ".ssh/config"
+	DefaultAlias            = "project/"
+	RegexpPattern           = `Host github\.com\n\s+User (?P<user>\w+)`
 )
 
 func main() {
-	cmd := exec.Command("go", "version")
-	if _, err := cmd.CombinedOutput(); err != nil {
-		fmt.Printf("Go is not installed: %s\n", err)
-		log.Fatal(err)
+	if !isGoInstalled() {
+		log.Fatal("Go is not installed.")
 	}
 
 	projectName := flag.String("d", DefaultProjectName, "project name")
 	flag.Parse()
 
 	if err := mkdir(*projectName); err != nil {
-		log.Fatal(err)
+		log.Fatal("Error creating directory: ", err)
 	}
 
 	if err := createProjectFiles(*projectName); err != nil {
-		log.Fatal(err)
+		log.Fatal("Error creating project files: ", err)
 	}
+}
+
+func isGoInstalled() bool {
+	_, err := exec.Command("go", "version").CombinedOutput()
+	return err == nil
 }
 
 func mkdir(name string) error {
@@ -56,13 +84,22 @@ func mkdir(name string) error {
 	return nil
 }
 
-// createProjectFiles creates the necessary files and directories for the project.
 func createProjectFiles(projectName string) error {
+	filesToCreate := []struct {
+		Name     string
+		Template string
+	}{
+		{GolintciFile, GolintciTemplate},
+		{GoreleaserFile, GoreleaserTemplate},
+		{GitignoreFile, GitignoreTemplate},
+		{Makefile, MakefileTemplate},
+	}
+
 	if err := os.Chdir(projectName); err != nil {
 		return fmt.Errorf("error changing to project directory: %w", err)
 	}
 
-	if err := initRepo(); err != nil {
+	if err := runCommand("git", "init"); err != nil {
 		return fmt.Errorf("error initializing repository: %w", err)
 	}
 
@@ -70,20 +107,10 @@ func createProjectFiles(projectName string) error {
 		return fmt.Errorf("error initializing Go module: %w", err)
 	}
 
-	if err := createFile(".golintci.yml", templatesFS, "templates/.golangci.yml"); err != nil {
-		return fmt.Errorf("error creating linting configuration file: %w", err)
-	}
-
-	if err := createFile(".goreleaser.yml", templatesFS, "templates/.goreleaser.yml"); err != nil {
-		return fmt.Errorf("error creating goreleaser file: %w", err)
-	}
-
-	if err := createFile(".gitignore", templatesFS, "templates/.gitignore"); err != nil {
-		return fmt.Errorf("error creating .gitignore file: %w", err)
-	}
-
-	if err := createFile("Makefile", templatesFS, "templates/Makefile"); err != nil {
-		return fmt.Errorf("error creating .gitignore file: %w", err)
+	for _, file := range filesToCreate {
+		if err := createFile(file.Name, templatesFS, file.Template); err != nil {
+			return fmt.Errorf("error creating %s: %w", file.Name, err)
+		}
 	}
 
 	if err := createScripts(); err != nil {
@@ -101,54 +128,35 @@ func createProjectFiles(projectName string) error {
 	return nil
 }
 
-// initRepo initializes a new Git repository in the current directory.
-func initRepo() error {
-	cmd := exec.Command("git", "init")
-	err := cmd.Run()
-	if err != nil {
-		return fmt.Errorf("error initializing repository: %w", err)
-	}
-
-	return nil
+func runCommand(name string, arg ...string) error {
+	cmd := exec.Command(name, arg...)
+	return cmd.Run()
 }
 
-// goModInit initializes a new Go module with the given name in the current directory.
 func goModInit(name string) error {
 	alias := getAlias()
 	projectName := alias + name
-	cmd := exec.Command("go", "mod", "init", projectName)
-	err := cmd.Run()
-	if err != nil {
-		return fmt.Errorf("error initializing Go module: %w", err)
-	}
-
-	return nil
+	return runCommand("go", "mod", "init", projectName)
 }
 
 func getAlias() string {
-	const (
-		alias         = "project/"
-		sshConfigPath = ".ssh/config"
-		req           = `Host github\.com\n\s+User (?P<user>\w+)`
-	)
-
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return alias
+		return DefaultAlias
 	}
 
-	path := path.Join(home, sshConfigPath)
+	path := filepath.Join(home, SSHConfigFile)
 
 	input, err := readFile(path)
 	if err != nil {
-		return alias
+		return DefaultAlias
 	}
 
-	re := regexp.MustCompile(req)
+	re := regexp.MustCompile(RegexpPattern)
 	match := re.FindStringSubmatch(input)
 
 	if len(match) < 2 {
-		return alias
+		return DefaultAlias
 	}
 
 	return fmt.Sprintf("github.com/%s/", match[1])
@@ -170,8 +178,6 @@ func readFile(path string) (string, error) {
 	return string(bytes[:n]), nil
 }
 
-// createFile creates a new file with the given name and writes the contents of the specified
-// embedded file to it.
 func createFile(name string, fs embed.FS, filePath string) error {
 	file, err := os.Create(name)
 	if err != nil {
@@ -179,7 +185,6 @@ func createFile(name string, fs embed.FS, filePath string) error {
 	}
 	defer file.Close()
 
-	// Write the contents of the embedded file to the new file
 	bytes, err := fs.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("error reading embedded file: %w", err)
@@ -193,89 +198,65 @@ func createFile(name string, fs embed.FS, filePath string) error {
 	return nil
 }
 
-// createPreCommitHook creates a pre-commit hook for the repository.
 func createPreCommitHook() error {
-	if err := os.Chdir(".git/hooks"); err != nil {
-		return fmt.Errorf("error changing to .git/hooks directory: %w", err)
+	if err := os.Chdir(GitHooksDir); err != nil {
+		return fmt.Errorf("error changing to %s directory: %w", GitHooksDir, err)
 	}
 
-	file, err := os.Create("pre-commit")
-	if err != nil {
-		return fmt.Errorf("error creating file: %w", err)
-	}
-	defer file.Close()
-
-	// Write the contents of the preCommitHook string to the file
-	bytes, err := templatesFS.ReadFile("templates/scripts/pre-commit")
-	if err != nil {
-		return fmt.Errorf("error reading embedded file: %w", err)
-	}
-
-	_, err = file.Write(bytes)
-	if err != nil {
-		return fmt.Errorf("error writing to file: %w", err)
-	}
-
-	// Make the file executable
-	if err = os.Chmod("pre-commit", 0o700); err != nil {
-		return fmt.Errorf("error making file executable: %w", err)
+	if err := createExecutableFile(PreCommitHookFile, templatesFS, PreCommitHookTemplate); err != nil {
+		return fmt.Errorf("error creating %s: %w", PreCommitHookFile, err)
 	}
 
 	return nil
 }
 
 func createGithubAction() error {
-	if err := mkdir(".github"); err != nil {
-		return err
+	dirsToCreate := []string{GithubDir, WorkflowsDir}
+
+	for _, dir := range dirsToCreate {
+		if err := mkdir(dir); err != nil {
+			return fmt.Errorf("error creating %s: %w", dir, err)
+		}
 	}
 
-	if err := mkdir(".github/workflows"); err != nil {
-		return err
-	}
-
-	file, err := os.Create(".github/workflows/releaser.yml")
-	if err != nil {
-		return fmt.Errorf("error creating file: %w", err)
-	}
-	defer file.Close()
-
-	// Write the contents of the preCommitHook string to the file
-	bytes, err := templatesFS.ReadFile("templates/releaser.yml")
-	if err != nil {
-		return fmt.Errorf("error reading embedded file: %w", err)
-	}
-
-	_, err = file.Write(bytes)
-	if err != nil {
-		return fmt.Errorf("error writing to file: %w", err)
+	if err := createFile(ReleaserFile, templatesFS, ReleaserTemplate); err != nil {
+		return fmt.Errorf("error creating %s: %w", ReleaserFile, err)
 	}
 
 	return nil
 }
 
 func createScripts() error {
-	if err := mkdir("scripts"); err != nil {
+	if err := mkdir(ScriptsDir); err != nil {
 		return err
 	}
 
-	if err := createFile("scripts/pre-commit", templatesFS, "templates/scripts/pre-commit"); err != nil {
-		return fmt.Errorf("error creating pre-commit file: %w", err)
+	filesToCreate := []struct {
+		Name     string
+		Template string
+	}{
+		{PreCommitScriptFile, PreCommitScriptTemplate},
+		{SetupScriptFile, SetupScriptTemplate},
+		{CIBuildScriptFile, CIBuildScriptTemplate},
 	}
 
-	if err := createFile("scripts/setup.sh", templatesFS, "templates/scripts/setup.sh"); err != nil {
-		return fmt.Errorf("error creating setup file: %w", err)
-	}
-	// Make the file executable
-	if err := os.Chmod("scripts/setup.sh", 0o700); err != nil {
-		return fmt.Errorf("error making file executable: %w", err)
+	for _, file := range filesToCreate {
+		if err := createExecutableFile(file.Name, templatesFS, file.Template); err != nil {
+			return fmt.Errorf("error creating %s: %w", file.Name, err)
+		}
 	}
 
-	if err := createFile("scripts/cibuild.sh", templatesFS, "templates/scripts/cibuild.sh"); err != nil {
-		return fmt.Errorf("error creating cibuild file: %w", err)
+	return nil
+}
+
+func createExecutableFile(name string, fs embed.FS, filePath string) error {
+	if err := createFile(name, fs, filePath); err != nil {
+		return err
 	}
+
 	// Make the file executable
-	if err := os.Chmod("scripts/cibuild.sh", 0o700); err != nil {
-		return fmt.Errorf("error making file executable: %w", err)
+	if err := os.Chmod(name, 0o700); err != nil {
+		return fmt.Errorf("error making %s executable: %w", name, err)
 	}
 
 	return nil
